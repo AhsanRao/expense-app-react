@@ -14,8 +14,8 @@ import InputAdornment from '@mui/material/InputAdornment';
 
 import { useRouter } from 'src/routes/hooks';
 
-import { bgGradient } from 'src/theme/css';
 import account from 'src/_mock/account';
+import { bgGradient } from 'src/theme/css';
 import AuthContext from 'src/context/AuthContext';
 
 import Logo from 'src/components/logo';
