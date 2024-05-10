@@ -27,7 +27,7 @@ First, clone the repository to your local machine:
 
 ```bash
 git clone https://github.com/AhsanRao/expense-app.git
-cd expense-app
+cd expense-app-react
 ```
 
 ### Installing Dependencies
