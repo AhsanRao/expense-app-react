@@ -1,4 +1,5 @@
 import axios from 'axios';
+import JsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useSnackbar } from 'notistack';
@@ -144,6 +145,92 @@ const DetailedExpenses = () => {
       console.error('Error exporting data:', error);
       enqueueSnackbar('Export Failed', { variant: 'error' });
     }
+  };
+
+  const fetchImageAsBase64 = async (receiptId) => {
+    if (!receiptId) return null;
+    const imageUrl = `https://firebasestorage.googleapis.com/v0/b/dba2-25dbc.appspot.com/o/receipts%2F${encodeURIComponent(
+      receiptId
+    )}.jpg?alt=media&token=de489e2a-ceec-42d6-bffd-ab4db6dd5b7d`;
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        resolve(reader.result);
+      };
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleExportPDF = async () => {
+    const { expenses, isApproved, userName } = data;
+    const doc = new JsPDF();
+    let y = 50;
+
+    doc.text(`Username: ${userName}`, 10, y);
+    y += 10;
+    doc.text(`Month: ${formatMonth(month)}`, 10, y);
+    y += 10;
+    doc.text(`Approved Status: ${isApproved ? 'Approved' : 'Not Approved'}`, 10, y);
+    y += 20;
+    doc.text(`Flat Rate Total: ${flatRateTotal} $`, 10, y);
+    y += 10;
+    doc.text(`General Expenses Total: ${generalExpensesTotal} $`, 10, y);
+    y += 10;
+    doc.text(`Vehicle Expenses Total: ${vehicleTotal} $`, 10, y);
+    y += 20;
+    doc.text(`Grand Total: ${flatRateTotal + generalExpensesTotal + vehicleTotal} $`, 10, y);
+    y += 20;
+    doc.addPage();
+    y = 10;
+
+    const dayEntries = expenses.map(async (day) => {
+      const lines = [`Day: ${day.id} - ${day.dayType || 'No specific type'}`];
+      if (day.expenses && day.expenses.length > 0) {
+        const expenseEntries = await Promise.all(
+          day.expenses.map(async (expense) => {
+            const text = `Expense: ${expense.category} ${expense.type} - $${expense.amount}`;
+            let imageBase64 = null;
+            if (expense.receipt) {
+              imageBase64 = await fetchImageAsBase64(expense.receipt);
+            }
+            return { text, imageBase64 };
+          })
+        );
+
+        expenseEntries.forEach(({ text, imageBase64 }) => {
+          lines.push(text);
+          if (imageBase64) {
+            lines.push({ image: imageBase64, options: { width: 50, height: 50 } });
+          }
+        });
+      } else {
+        lines.push('No expenses this day');
+      }
+
+      return lines;
+    });
+
+    const pages = await Promise.all(dayEntries);
+    pages.flat().forEach((line) => {
+      if (typeof line === 'string') {
+        doc.text(line, 10, y);
+        y += 10;
+      } else if (line.image) {
+        const scaleFactor = 2;
+        const scaleFactorHeight = 3;
+        const newHeight = line.options.height * scaleFactorHeight;
+        const newWidth = line.options.width * scaleFactor;
+        doc.addImage(line.image, 'JPEG', 10, y, newWidth, newHeight);
+        y += newHeight + 10; // Adjust vertical space after the image
+        doc.addPage();
+        y = 10; // Reset y position at the top of the new page
+      }
+    });
+
+    doc.save('detailed_expenses.pdf');
   };
 
   useEffect(() => {
@@ -323,13 +410,30 @@ const DetailedExpenses = () => {
                 padding: '8px',
                 paddingLeft: '16px',
                 paddingRight: '16px',
+                marginRight: '8px',
                 backgroundColor: 'rgba(30, 144, 255, 0.9)', // Soft blue for export button
                 '&:hover': {
                   backgroundColor: 'rgba(30, 144, 255, 1.2)', // Darker blue on hover
                 },
               }}
             >
-              Export
+              Export Excel
+            </Button>
+            <Button
+              variant="text"
+              onClick={handleExportPDF}
+              sx={{
+                color: 'white',
+                padding: '8px',
+                paddingLeft: '16px',
+                paddingRight: '16px',
+                backgroundColor: 'rgba(0, 128, 128, 0.9)',
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 128, 128, 1.2)',
+                },
+              }}
+            >
+              Export PDF
             </Button>
           </Box>
         </Box>
